@@ -58,7 +58,7 @@ def create_user(event,context):
     except Exception as e:
         return json.dumps(e,default=str)
 
-def get_users(conn):
+def get_users(event,context):
   try:  
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM users;')
