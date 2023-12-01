@@ -69,8 +69,56 @@ def get_users(conn):
     cursor.close()
     if not data:
         return {"users":[]}
-    users = [{"user_id": user[0], "full_name": user[1], "mob_num": user[2], "pan_num": user[3]} for user in users_data]
+    users = [{"user_id": user[0], "full_name": user[1], "mob_num": user[2], "pan_num": user[3]} for user in data]
     return {"users": users}
 
   except Exception as e:
-    return {"error": "Internal server error"}
+    return e
+
+def delete_user(conn,data):
+    try:
+        cursor = conn.cursor()
+        id = data.get('user_id')
+        cursor.execute('SELECT * FROM users WHERE user_id = %s',(id,))
+        user = cursor.fetchone()
+        if not user:
+            cursor.close()
+            return "No user found"
+        cursor.execute('DELETE FROM users WHERE user_id = %s',(id,))
+        conn.commit()
+        cursor.close()
+        return f"User with id->{id} deleted"
+    except Exception as e:
+        return e
+
+def update_user(conn,user_id,data):
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM users WHERE user_id = %s',(user_id,))
+        user = cursor.fetchone()
+        if not user:
+            cursor.close()
+            return "No user exists"
+        if "full_name" in data:
+            new_name = data.get("full_name")
+            if not new_name:
+               return "Name cannot be empty"
+            update_query = "UPDATE users SET full_name = %s WHERE user_id = %s;"
+            cursor.execute(update_query,(new_name,user_id))
+        if "mob_num" in data:
+            new_mob = data.get("mob_num")
+            if not is_valid_mob_num(new_mob):
+              return "Enter a valid mobile number"
+            update_query = "UPDATE users SET mob_num = %s WHERE user_id = %s;"
+            cursor.execute(update_query,(new_mob,user_id))
+        if "pan_num" in data:
+            new_pan = data.get("pan_num")
+            if not is_valid_pan(new_pan):
+                return "Enter a valid PAN"
+            update_query = "UPDATE users SET pan_num = %s WHERE user_id = %s;"
+            cursor.execute(update_query,(new_pan,user_id))
+        conn.commit()
+        cursor.close()
+        return f"Update succesful for user with id->{user_id}"
+    except Exception as e:
+        return e
