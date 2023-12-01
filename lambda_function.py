@@ -1,18 +1,13 @@
-import uuid,os,environ,re
+import uuid,re,json
 from pathlib import Path
 import psycopg2
 from psycopg2 import sql
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-env = environ.Env()
-environ.Env.read_env()
-
 conn = psycopg2.connect(
-             host='database-1.cdrddmhbv4ei.eu-north-1',
-             port=5432,  
-             user='postgres',
-             password='adhi1234',
-             database='postgres'
+            host='database-2.cdrddmhbv4ei.eu-north-1.rds.amazonaws.com',
+            database='postgres',
+            user='postgres',
+            password='adhi1234',
         )
 
 def is_valid_mob_num(mob_num):
@@ -39,27 +34,29 @@ def create_user_table(conn):
         cursor.close()
 
     except Exception as e:
-        print(f'Error creating table: {e}')
+        response = e
+        return json.dumps(response,default=str)
 
-def create_user(data):
+def create_user(event,context):
     try:
-        if not data.get('full_name'):
+        if not event['full_name']:
             return "Full name cannot be empty"
-        if not is_valid_mob_num(data.get('mob_num')):
+        if not is_valid_mob_num(event['mob_num']):
             return "Please enter a valid mobile number"
-        if not is_valid_pan(data.get('pan_num')):
+        if not is_valid_pan(event['pan_num']):
             return "PAN is invalid"
         
         id = str(uuid.uuid4())
         create_user_table(conn)
         cursor = conn.cursor()
         insert_q = sql.SQL("INSERT INTO users (user_id, full_name, mob_num, pan_num) VALUES (%s, %s, %s, %s);")
-        cursor.execute(insert_q, (id, data.get('full_name'), data.get('mob_num'), data.get('pan_num')))
+        cursor.execute(insert_q, (id, event['full_name'], event['mob_num'], event['pan_num']))
         conn.commit()
         cursor.close()
-        return f"User created with id-{id}"
+        response = f'User with id->{id} created'
+        return json.dumps(response,default=str)
     except Exception as e:
-        return e
+        return json.dumps(e,default=str)
 
 def get_users(conn):
   try:  
@@ -75,50 +72,51 @@ def get_users(conn):
   except Exception as e:
     return e
 
-def delete_user(conn,data):
+def delete_user(event,context):
     try:
         cursor = conn.cursor()
-        id = data.get('user_id')
+        id = event['user_id']
         cursor.execute('SELECT * FROM users WHERE user_id = %s',(id,))
         user = cursor.fetchone()
         if not user:
             cursor.close()
-            return "No user found"
+            return {"message":"No user found"}
         cursor.execute('DELETE FROM users WHERE user_id = %s',(id,))
         conn.commit()
         cursor.close()
-        return f"User with id->{id} deleted"
+        return {"message":f"User with {id} deleted"}
     except Exception as e:
-        return e
+        return json.dumps(e,default=str)
 
-def update_user(conn,user_id,data):
+def update_user(event,context):
     try:
+        user_id = event['user_id']
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM users WHERE user_id = %s',(user_id,))
         user = cursor.fetchone()
         if not user:
             cursor.close()
-            return "No user exists"
-        if "full_name" in data:
-            new_name = data.get("full_name")
+            return {"message":"No user found"}
+        if "full_name" in event['update_data']:
+            new_name = event['update_data']['full_name']
             if not new_name:
-               return "Name cannot be empty"
+               return {"message":"Name cant be empty"}
             update_query = "UPDATE users SET full_name = %s WHERE user_id = %s;"
             cursor.execute(update_query,(new_name,user_id))
-        if "mob_num" in data:
-            new_mob = data.get("mob_num")
+        if "mob_num" in event['update_data']:
+            new_mob = event['update_data']['mob_num']
             if not is_valid_mob_num(new_mob):
-              return "Enter a valid mobile number"
+              return {"message":"Enter valid number"}
             update_query = "UPDATE users SET mob_num = %s WHERE user_id = %s;"
             cursor.execute(update_query,(new_mob,user_id))
-        if "pan_num" in data:
-            new_pan = data.get("pan_num")
+        if "pan_num" in event['update_data']:
+            new_pan = event['update_data']['pan_num']
             if not is_valid_pan(new_pan):
-                return "Enter a valid PAN"
+                return {"message":"Enter valid pan"}
             update_query = "UPDATE users SET pan_num = %s WHERE user_id = %s;"
             cursor.execute(update_query,(new_pan,user_id))
         conn.commit()
         cursor.close()
-        return f"Update succesful for user with id->{user_id}"
+        return {"message":f"Update succes for {user_id}"}
     except Exception as e:
-        return e
+        return json.dumps(e,default=str)
